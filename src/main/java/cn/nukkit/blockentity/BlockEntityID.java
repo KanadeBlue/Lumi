@@ -43,6 +43,7 @@ public interface BlockEntityID {
     String COPPER_GOLEM_STATUE = "CopperGolemStatue";
     String CHISELED_BOOKSHELF = "ChiseledBookshelf";
     String HANGING_SIGN = "HangingSign";
+    String POTENT_SULFUR = "PotentSulfur";
     String SCULK_SENSOR = "SculkSensor";
     String COMMAND_BLOCK = "CommandBlock";
     String TRIAL_SPAWNER = "TrialSpawner";

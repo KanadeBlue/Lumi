@@ -1039,7 +1039,39 @@ public class BlockRegistry implements IRegistry<Integer, Block, Class<? extends 
         register(WAXED_WEATHERED_COPPER_LANTERN, BlockCopperLanternWeatheredWaxed.class); //1344
         register(WAXED_OXIDIZED_COPPER_LANTERN, BlockCopperLanternOxidizedWaxed.class); //1345
         register(GOLDEN_DANDELION, BlockGoldenDandelion.class); //1346
-
+        register(SULFUR, BlockSulfur.class); //1347
+        register(SULFUR_SLAB, BlockSlabSulfur.class); //1348
+        register(SULFUR_DOUBLE_SLAB, BlockDoubleSlabSulfur.class); //1349
+        register(SULFUR_STAIRS, BlockStairsSulfur.class); //1350
+        register(SULFUR_WALL, BlockWallSulfur.class); //1351
+        register(POLISHED_SULFUR, BlockSulfurPolished.class); //1352
+        register(POLISHED_SULFUR_SLAB, BlockSlabSulfurPolished.class); //1353
+        register(POLISHED_SULFUR_DOUBLE_SLAB, BlockDoubleSlabSulfurPolished.class); //1354
+        register(POLISHED_SULFUR_STAIRS, BlockStairsSulfurPolished.class); //1355
+        register(POLISHED_SULFUR_WALL, BlockWallSulfurPolished.class); //1356
+        register(SULFUR_BRICKS, BlockSulfurBricks.class); //1357
+        register(SULFUR_BRICK_SLAB, BlockSlabSulfurBrick.class); //1358
+        register(SULFUR_BRICK_DOUBLE_SLAB, BlockDoubleSlabSulfurBrick.class); //1359
+        register(SULFUR_BRICK_STAIRS, BlockStairsSulfurBrick.class); //1360
+        register(SULFUR_BRICK_WALL, BlockWallSulfurBrick.class); //1361
+        register(CHISELED_SULFUR, BlockSulfurChiseled.class); //1362
+        register(POTENT_SULFUR, BlockSulfurPotent.class); //1363
+        register(CINNABAR, BlockCinnabar.class); //1364
+        register(CINNABAR_SLAB, BlockSlabCinnabar.class); //1365
+        register(CINNABAR_DOUBLE_SLAB, BlockDoubleSlabCinnabar.class); //1366
+        register(CINNABAR_STAIRS, BlockStairsCinnabar.class); //1367
+        register(CINNABAR_WALL, BlockWallCinnabar.class); //1368
+        register(POLISHED_CINNABAR, BlockCinnabarPolished.class); //1369
+        register(POLISHED_CINNABAR_SLAB, BlockSlabCinnabarPolished.class); //1370
+        register(POLISHED_CINNABAR_DOUBLE_SLAB, BlockDoubleSlabCinnabarPolished.class); //1371
+        register(POLISHED_CINNABAR_STAIRS, BlockStairsCinnabarPolished.class); //1372
+        register(POLISHED_CINNABAR_WALL, BlockWallCinnabarPolished.class); //1373
+        register(CINNABAR_BRICKS, BlockCinnabarBricks.class); //1374
+        register(CINNABAR_BRICK_SLAB, BlockSlabCinnabarBrick.class); //1375
+        register(CINNABAR_BRICK_DOUBLE_SLAB, BlockDoubleSlabCinnabarBrick.class); //1376
+        register(CINNABAR_BRICK_STAIRS, BlockStairsCinnabarBrick.class); //1377
+        register(CINNABAR_BRICK_WALL, BlockWallCinnabarBrick.class); //1378
+        register(CHISELED_CINNABAR, BlockCinnabarChiseled.class); //1379
 
         IntStream idStream = IntStream.range(0, Block.MAX_BLOCK_ID);
         idStream.parallel().forEach(id -> {
