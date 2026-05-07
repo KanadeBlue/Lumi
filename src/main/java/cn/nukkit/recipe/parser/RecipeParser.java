@@ -98,17 +98,21 @@ public class RecipeParser {
                         }
                         switch (block) {
                             case "furnace", "deprecated" -> {
-                                Registries.RECIPE.registerFurnaceRecipe(new FurnaceRecipe(
+                                FurnaceRecipe furnaceRecipe = new FurnaceRecipe(
                                         parseItem(recipe.get("output").getAsJsonObject()).getItem(),
                                         input
-                                ), xp);
+                                );
+                                furnaceRecipe.setId(UUID.randomUUID());
+                                Registries.RECIPE.registerFurnaceRecipe(furnaceRecipe, xp);
                             }
 
                             case "blast_furnace" -> {
-                                Registries.RECIPE.registerBlastFurnaceRecipe(new BlastFurnaceRecipe(
+                                BlastFurnaceRecipe blastFurnaceRecipe = new BlastFurnaceRecipe(
                                         parseItem(recipe.get("output").getAsJsonObject()).getItem(),
                                         input
-                                ), xp);
+                                );
+                                blastFurnaceRecipe.setId(UUID.randomUUID());
+                                Registries.RECIPE.registerBlastFurnaceRecipe(blastFurnaceRecipe, xp);
                             }
 
                             case "campfire" -> {

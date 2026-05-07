@@ -5582,6 +5582,9 @@ public class Player extends EntityHuman implements CommandSender, InventoryHolde
             if (protocol >= ProtocolInfo.v1_21_100) {
                 experiments.add(new ExperimentData("y_2025_drop_3", true));
             }
+            if (protocol >= ProtocolInfo.v1_26_20_26) {
+                experiments.add(new ExperimentData("furnace_recipe_book", true));
+            }
         }
         return experiments;
     }

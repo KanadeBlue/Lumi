@@ -15,6 +15,10 @@ public class MoveEntityAbsolutePacket extends DataPacket {
     public static final byte FLAG_GROUND = 0x01;
     public static final byte FLAG_TELEPORT = 0x02;
     public static final byte FLAG_FORCE_MOVE_LOCAL_ENTITY = 0x04;
+    /**
+     * @since v975
+     */
+    public static final byte FLAG_FORCE_COMPLETION = 0x08;
 
     public long eid;
     public double x;
@@ -26,6 +30,10 @@ public class MoveEntityAbsolutePacket extends DataPacket {
     public boolean onGround;
     public boolean teleport;
     public boolean forceMoveLocalEntity;
+    /**
+     * @since v975
+     */
+    public boolean forceCompletion;
 
     @Override
     public byte pid() {
@@ -35,11 +43,12 @@ public class MoveEntityAbsolutePacket extends DataPacket {
     @Override
     public void decode() {
         this.eid = this.getEntityRuntimeId();
-        if (protocol >= 274) {
-            int flags = this.getByte();
-            onGround = (flags & FLAG_GROUND) != 0;
-            teleport = (flags & FLAG_TELEPORT) != 0;
-            forceMoveLocalEntity = (flags & FLAG_FORCE_MOVE_LOCAL_ENTITY) != 0;
+        int flags = this.getByte();
+        onGround = (flags & FLAG_GROUND) != 0;
+        teleport = (flags & FLAG_TELEPORT) != 0;
+        forceMoveLocalEntity = (flags & FLAG_FORCE_MOVE_LOCAL_ENTITY) != 0;
+        if (protocol >= ProtocolInfo.v1_26_20_26) {
+            forceCompletion = (flags & FLAG_FORCE_COMPLETION) != 0;
         }
         Vector3f v = this.getVector3f();
         this.x = v.x;
@@ -54,26 +63,23 @@ public class MoveEntityAbsolutePacket extends DataPacket {
     public void encode() {
         this.reset();
         this.putEntityRuntimeId(this.eid);
-        if (protocol >= 274) {
-            byte flags = 0;
-            if (onGround) {
-                flags |= FLAG_GROUND;
-            }
-            if (teleport) {
-                flags |= FLAG_TELEPORT;
-            }
-            if (forceMoveLocalEntity) {
-                flags |= FLAG_FORCE_MOVE_LOCAL_ENTITY;
-            }
-            this.putByte(flags);
+        byte flags = 0;
+        if (onGround) {
+            flags |= FLAG_GROUND;
         }
+        if (teleport) {
+            flags |= FLAG_TELEPORT;
+        }
+        if (forceMoveLocalEntity) {
+            flags |= FLAG_FORCE_MOVE_LOCAL_ENTITY;
+        }
+        if (protocol >= ProtocolInfo.v1_26_20_26 && forceCompletion) {
+            flags |= FLAG_FORCE_COMPLETION;
+        }
+        this.putByte(flags);
         this.putVector3f((float) this.x, (float) this.y, (float) this.z);
         this.putRotationByte(this.pitch);
         this.putRotationByte(this.headYaw);
         this.putRotationByte(this.yaw);
-        if (protocol <= 261) {
-            this.putBoolean(this.onGround);
-            this.putBoolean(this.teleport);
-        }
     }
 }

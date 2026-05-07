@@ -50,6 +50,7 @@ public class RuntimeItems {
     private static RuntimeItemMapping mapping898;
     private static RuntimeItemMapping mapping924;
     private static RuntimeItemMapping mapping944;
+    private static RuntimeItemMapping mapping975;
 
     public static RuntimeItemMapping[] VALUES;
 
@@ -119,6 +120,7 @@ public class RuntimeItems {
         mapping898 = new RuntimeItemMapping(mappingEntries, ProtocolInfo.v1_21_130);
         mapping924 = new RuntimeItemMapping(mappingEntries, ProtocolInfo.v1_26_0);
         mapping944 = new RuntimeItemMapping(mappingEntries, ProtocolInfo.v1_26_10);
+        mapping975 = new RuntimeItemMapping(mappingEntries, ProtocolInfo.v1_26_20);
 
         VALUES = new RuntimeItemMapping[]{
                 mapping589,
@@ -143,7 +145,8 @@ public class RuntimeItems {
                 mapping859,
                 mapping898,
                 mapping924,
-                mapping944
+                mapping944,
+                mapping975
         };
 
         for (int protocol : ProtocolInfo.SUPPORTED_PROTOCOLS) {
@@ -179,7 +182,9 @@ public class RuntimeItems {
 
 
     public static RuntimeItemMapping getMapping(int protocolId) {
-        if (protocolId >= ProtocolInfo.v1_26_10) {
+        if (protocolId >= ProtocolInfo.v1_26_20) {
+            return mapping975;
+        } else if (protocolId >= ProtocolInfo.v1_26_10) {
             return mapping944;
         } else if (protocolId >= ProtocolInfo.v1_26_0) {
             return mapping924;

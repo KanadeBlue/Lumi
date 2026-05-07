@@ -9,6 +9,10 @@ public class BlastFurnaceRecipe extends FurnaceRecipe {
         super(result, ingredient);
     }
 
+    public BlastFurnaceRecipe(String recipeId, Item result, Item ingredient) {
+        super(recipeId, result, ingredient);
+    }
+
     @Override
     public RecipeType getType() {
         return this.ingredient.hasMeta() ? RecipeType.BLAST_FURNACE_DATA : RecipeType.BLAST_FURNACE;

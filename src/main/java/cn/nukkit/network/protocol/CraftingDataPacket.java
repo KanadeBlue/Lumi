@@ -1,5 +1,7 @@
 package cn.nukkit.network.protocol;
 
+import cn.nukkit.item.RuntimeItemMapping;
+import cn.nukkit.item.RuntimeItems;
 import cn.nukkit.recipe.descriptor.DefaultDescriptor;
 import cn.nukkit.recipe.descriptor.ItemDescriptor;
 import cn.nukkit.recipe.descriptor.ItemTagDescriptor;
@@ -85,7 +87,11 @@ public class CraftingDataPacket extends DataPacket {
         this.putUnsignedVarInt(entries.size() + 1);
 
         for (Recipe recipe : entries) {
-            this.putVarInt(recipe.getType().getNetworkType());
+            RecipeType networkType = recipe.getType();
+            if ((networkType == RecipeType.FURNACE || networkType == RecipeType.FURNACE_DATA) && protocol >= ProtocolInfo.v1_26_20_26) {
+                networkType = RecipeType.SHAPELESS;
+            }
+            this.putVarInt(networkType.getNetworkType());
             switch (recipe.getType()) {
                 case STONECUTTER:
                     StonecutterRecipe stonecutterRecipe = (StonecutterRecipe) recipe;
@@ -177,13 +183,46 @@ public class CraftingDataPacket extends DataPacket {
                 case FURNACE:
                 case FURNACE_DATA:
                     FurnaceRecipe furnace = (FurnaceRecipe) recipe;
-                    Item input = furnace.getInput();
-                    this.putVarInt(input.getId());
-                    if (recipe.getType() == RecipeType.FURNACE_DATA) {
-                        this.putVarInt(input.getDamage());
+                    if (protocol >= ProtocolInfo.v1_26_20_26) {
+                        this.putString(furnace.getRecipeId());
+                        this.putUnsignedVarInt(1); // Ingredients length
+                        new DefaultDescriptor(furnace.getInput()).putRecipe(this, protocol);
+                        this.putUnsignedVarInt(1); // Results length
+                        this.putSlot(protocol, furnace.getResult(), true);
+                        this.putUUID(furnace.getId());
+                        String craftingTag;
+                        if (recipe instanceof BlastFurnaceRecipe) {
+                            craftingTag = CRAFTING_TAG_BLAST_FURNACE;
+                        } else {
+                            craftingTag = CRAFTING_TAG_FURNACE;
+                        }
+                        this.putString(craftingTag);
+                        this.putVarInt(0); // priority
+                        this.putByte((byte) RecipeUnlockingRequirement.UnlockingContext.ALWAYS_UNLOCKED.ordinal());
+                        this.putUnsignedVarInt(furnace.getNetworkId());
+                    } else {
+                        Item input = furnace.getInput();
+                        int runtimeId = 0;
+                        int damage = 0;
+                        if (!input.hasMeta()) {
+                            try {
+                                runtimeId = RuntimeItems.getMapping(protocol).toRuntime(input.getId(), 0).getRuntimeId();
+                                damage = 0x7fff;
+                            } catch (IllegalArgumentException ignored) {}
+                        } else {
+                            try {
+                                RuntimeItemMapping.RuntimeEntry runtimeEntry = RuntimeItems.getMapping(protocol).toRuntime(input.getId(), input.getDamage());
+                                runtimeId = runtimeEntry.getRuntimeId();
+                                damage = runtimeEntry.isHasDamage() ? 0 : input.getDamage();
+                            } catch (IllegalArgumentException ignored) {}
+                        }
+                        this.putVarInt(runtimeId);
+                        if (recipe.getType() == RecipeType.FURNACE_DATA) {
+                            this.putVarInt(damage);
+                        }
+                        this.putSlot(protocol, furnace.getResult(), true);
+                        this.putString(CRAFTING_TAG_FURNACE);
                     }
-                    this.putSlot(protocol, furnace.getResult(), true);
-                    this.putString(CRAFTING_TAG_FURNACE);
                     break;
                 case MULTI:
                     this.putUUID(((MultiRecipe) recipe).getId());
