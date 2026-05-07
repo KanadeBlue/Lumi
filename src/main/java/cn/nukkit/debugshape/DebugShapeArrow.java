@@ -133,7 +133,7 @@ public class DebugShapeArrow extends DebugShape {
     public ScriptDebugShape toNetworkData() {
         return new ScriptDebugShape(
                 id, getType(), position, null,
-                null, null, color,
+                null, null, null, color,
                 null, dimensionId, null, null, null,
                 arrowHeadLength, arrowHeadRadius, arrowHeadSegments
         );

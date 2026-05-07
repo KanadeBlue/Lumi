@@ -113,7 +113,7 @@ public abstract class DebugShape {
      */
     public ScriptDebugShape createRemovalNotice() {
         return new ScriptDebugShape(
-                this.id, null, null,
+                this.id, null, null, null,
                 null, null, null,
                 null, null, dimensionId,null, null,
                 null, null, null, null

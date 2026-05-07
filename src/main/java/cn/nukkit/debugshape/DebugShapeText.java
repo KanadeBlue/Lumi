@@ -45,7 +45,7 @@ public class DebugShapeText extends DebugShape {
     public ScriptDebugShape toNetworkData() {
         return new ScriptDebugShape(
                 id, getType(), position, null,
-                null, null, color,
+                null, null, null, color,
                 null, dimensionId, text, null, null,
                 null, null, null
         );

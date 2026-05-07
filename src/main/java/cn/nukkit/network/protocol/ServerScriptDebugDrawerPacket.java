@@ -1,5 +1,6 @@
 package cn.nukkit.network.protocol;
 
+import cn.nukkit.debugshape.DebugShapeText;
 import cn.nukkit.math.Vector3f;
 import cn.nukkit.network.protocol.types.ScriptDebugShape;
 import cn.nukkit.network.protocol.types.ScriptDebugShapeType;
@@ -37,7 +38,8 @@ public class ServerScriptDebugDrawerPacket extends DataPacket {
                     getUnsignedVarLong(), getOptional(null, BinaryStream::getScriptDebugShapeType),
                     getOptional(null, BinaryStream::getVector3f), getOptional(null, BinaryStream::getLFloat),
                     getOptional(null, BinaryStream::getVector3f),  getOptional(null, BinaryStream::getLFloat),
-                    getOptional(null, BinaryStream::getColor), null /* 1.26.0+ */, 0 /* 1.21.120+ */, getOptional(null, BinaryStream::getString),
+                    getOptional(null, BinaryStream::getLFloat), getOptional(null, BinaryStream::getColor),
+                    null /* 1.26.0+ */, 0 /* 1.21.120+ */, getOptional(null, BinaryStream::getString),
                     getOptional(null, BinaryStream::getVector3f), getOptional(null, BinaryStream::getVector3f),
                     getOptional(null, BinaryStream::getLFloat), getOptional(null, BinaryStream::getLFloat),
                     getOptional(null, BinaryStream::getByte)
@@ -94,6 +96,10 @@ public class ServerScriptDebugDrawerPacket extends DataPacket {
         this.putOptionalNull(shape.getRotation(), this::putVector3f);
 
         this.putOptionalNull(shape.getTotalTimeLeft(), this::putLFloat);
+
+        if (this.protocol >= ProtocolInfo.v1_26_20_26) {
+            this.putOptionalNull(shape.getMaximumRenderDistance(), this::putLFloat);
+        }
 
         this.putOptionalNull(shape.getColor(), (buffer, color) -> {
             int argb = (color.getAlpha() << 24) |
@@ -155,6 +161,13 @@ public class ServerScriptDebugDrawerPacket extends DataPacket {
                     if (shape.getText() != null) {
                         this.putString(shape.getText());
                     }
+                    if (this.protocol >= ProtocolInfo.v1_26_20_26) {
+                        this.putBoolean(false);
+                        this.putOptionalNull((Color) null, color -> this.putLInt(color.getRGB()));
+                        this.putBoolean(false);
+                        this.putBoolean(true);
+                        this.putBoolean(true);
+                    }
                     break;
 
                 case BOX:
@@ -199,6 +212,7 @@ public class ServerScriptDebugDrawerPacket extends DataPacket {
         Float scale = getOptional(null, BinaryStream::getLFloat);
         Vector3f rotation = getOptional(null, BinaryStream::getVector3f);
         Float totalTimeLeft = getOptional(null, BinaryStream::getLFloat);
+        Float maximumRenderDistance = getOptional(null, BinaryStream::getLFloat);
 
         Color color = null;
         Integer argb = getOptional(null, BinaryStream::getLInt);
@@ -261,7 +275,7 @@ public class ServerScriptDebugDrawerPacket extends DataPacket {
         }
 
         return new ScriptDebugShape(
-                id, type, position, scale, rotation, totalTimeLeft,
+                id, type, position, scale, rotation, totalTimeLeft, maximumRenderDistance,
                 color, null, dimensionId, text, boxBounds, lineEndPosition,
                 arrowHeadLength, arrowHeadRadius, segments
         );
