@@ -951,20 +951,35 @@ public class BinaryStream {
             return this.getSlot(protocolId);
         }
 
-        int id = 0;
         short runtimeId = (short) this.getLShort(); // signed short
+        if (runtimeId == 0) {
+            return Item.get(Item.AIR, 0, 0);
+        }
         int count = this.getLShort();
         int damage = (int) this.getUnsignedVarInt();
 
         RuntimeItemMapping mapping = RuntimeItems.getMapping(protocolId);
-        LegacyEntry legacyEntry = null;
 
-        if (runtimeId != 0) {
+        Integer id = null;
+        String stringId = null;
+        LegacyEntry legacyEntry = null;
+        try {
             legacyEntry = mapping.fromRuntime(runtimeId);
             id = legacyEntry.getLegacyId();
             if (legacyEntry.isHasDamage()) {
                 damage = legacyEntry.getDamage();
             }
+        } catch (IllegalArgumentException e) {
+
+        }
+
+        if (id == null || !Utils.hasItemOrBlock(id)) {
+            stringId = mapping.getNamespacedIdByNetworkId(runtimeId);
+            if (stringId == null) {
+                throw new IllegalArgumentException("Unknown item: runtimeID=" + runtimeId + " protocol=" + protocolId);
+            }
+            stringId = stringId + ":" + damage;
+            id = null;
         }
 
         if (this.getBoolean()) { // hasNetId
@@ -1029,7 +1044,7 @@ public class BinaryStream {
                     canBreak[i] = stream.readUTF();
                 }
 
-                if (id == ItemID.SHIELD) {
+                if (id != null && id == ItemID.SHIELD) {
                     stream.readLong();
                 }
 
@@ -1047,7 +1062,15 @@ public class BinaryStream {
             }
         }
 
-        Item item = Item.get(id, damage, count, nbt);
+        Item item;
+        if (id != null) {
+            item = Item.get(id, damage, count, nbt);
+        } else {
+            item = Item.fromString(stringId);
+            item.setDamage(damage);
+            item.setCount(count);
+            item.setCompoundTag(nbt);
+        }
 
         if ((canBreak != null && canBreak.length > 0) || (canPlace != null && canPlace.length > 0)) {
             CompoundTag namedTag = item.getNamedTag();
