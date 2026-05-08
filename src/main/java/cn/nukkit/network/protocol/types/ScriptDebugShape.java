@@ -20,6 +20,8 @@ public class ScriptDebugShape {
     @Nullable
     Float totalTimeLeft;
     @Nullable
+    Float maximumRenderDistance;
+    @Nullable
     Color color;
     @Nullable
     private final Long attachedToEntityId;

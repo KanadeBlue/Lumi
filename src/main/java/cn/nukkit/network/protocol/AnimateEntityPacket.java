@@ -33,7 +33,7 @@ public class AnimateEntityPacket extends DataPacket {
         this.animation = this.getString();
         this.nextState = this.getString();
         this.stopExpression = this.getString();
-        this.stopExpressionVersion = this.getInt();
+        this.stopExpressionVersion = this.getLInt();
         this.controller = this.getString();
         this.blendOutTime = this.getLFloat();
         for (int i = 0, len = (int) this.getUnsignedVarInt(); i < len; i++) {
@@ -47,7 +47,7 @@ public class AnimateEntityPacket extends DataPacket {
         this.putString(this.animation);
         this.putString(this.nextState);
         this.putString(this.stopExpression);
-        this.putInt(this.stopExpressionVersion);
+        this.putLInt(this.stopExpressionVersion);
         this.putString(this.controller);
         this.putLFloat(this.blendOutTime);
         this.putUnsignedVarInt(this.entityRuntimeIds.size());

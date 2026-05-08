@@ -816,6 +816,290 @@ public class BinaryStream {
         return values;
     }
 
+    public void putNetworkItemStackDescriptor(int protocolId, Item item) {
+        if (protocolId < ProtocolInfo.v1_26_20_26) {
+            this.putSlot(protocolId, item);
+            return;
+        }
+
+        RuntimeItemMapping mapping = RuntimeItems.getMapping(protocolId);
+        boolean isErrorItem = false;
+        boolean isStringItem = item instanceof StringItem;
+        try {
+            if (isStringItem && mapping.getNetworkIdByNamespaceId(item.getNamespaceId()).isEmpty()) {
+                throw new IllegalArgumentException("Unknown StringItem : NamespaceId=" + item.getNamespaceId() + " protocol=" + protocolId);
+            } else {
+                mapping.toRuntime(item.getId(), item.getDamage());
+            }
+        } catch (Exception e) {
+            Server.getInstance().getLogger().debug("Unknown Item", e);
+            isErrorItem = true;
+        }
+
+        if (!item.isSupportedOn(protocolId) || isErrorItem) {
+            Item originItem = item;
+            String downgradedIdentifier = RuntimeItems.downgradeIdentifier(item.getIdentifier(), protocolId);
+            if(downgradedIdentifier != null) {
+                String[] parts = downgradedIdentifier.split("-");
+                String identifier = parts[0];
+                int damage = parts.length > 1 ? Integer.parseInt(parts[1]) : originItem.getDamage();
+                item = Item.get(identifier, damage, originItem.getCount());
+            } else {
+                item = Item.get(Item.INFO_UPDATE, 0, originItem.getCount());
+            }
+
+            CompoundTag compoundTag = originItem.getNamedTag();
+            if (compoundTag != null) {
+                item.setNamedTag(new CompoundTag().putCompound(MV_ORIGIN_NBT, compoundTag));
+            }
+            item.setCustomName(originItem.getName());
+            item.setNamedTag(item.getNamedTag().putInt(MV_ORIGIN_ID, originItem.getId()).putInt(MV_ORIGIN_META, originItem.getDamage()));
+            if (isStringItem) {
+                item.setNamedTag(item.getNamedTag().putString(MV_ORIGIN_NAMESPACE, originItem.getNamespaceId(protocolId)));
+            }
+        }
+
+        int id = item.getId();
+        int meta = item.getDamage();
+        boolean isBlock = item instanceof ItemBlock;
+        boolean isDurable = item instanceof ItemDurable;
+
+        int runtimeId;
+        int damage = 0;
+        if (isStringItem && !isErrorItem) {
+            runtimeId = mapping.getNetworkId(item);
+            damage = item.getDamage();
+        } else {
+            RuntimeEntry runtimeEntry = mapping.toRuntime(id, meta);
+            runtimeId = runtimeEntry.getRuntimeId();
+            damage = isBlock || isDurable || runtimeEntry.isHasDamage() ? 0 : meta;
+        }
+
+        this.putLShort(runtimeId);
+        this.putLShort(item.getCount());
+        this.putUnsignedVarInt(damage);
+
+        boolean hasNetId = id != Item.AIR;
+        this.putBoolean(hasNetId); // hasNetId
+        if (hasNetId) {
+            this.putUnsignedVarInt(0); // netIdVariant ItemStackNetId
+            this.putVarInt(1); // netId 1 = Item is present
+        }
+
+        Block block = isBlock && id != Item.AIR ? item.getBlockUnsafe() : null;
+        int blockRuntimeId = block == null ? 0 : GlobalBlockPalette.getOrCreateRuntimeId(protocolId, block.getId(), block.getDamage());
+        this.putUnsignedVarInt(blockRuntimeId);
+
+        if (id == Item.AIR) {
+            this.putUnsignedVarInt(0); // No user date
+            return;
+        }
+
+        try {
+            BinaryStream stream = new BinaryStream();
+            if (isDurable || block != null && block.getDamage() > 0) {
+                byte[] nbt = item.getCompoundTag();
+                CompoundTag tag;
+                if (nbt == null || nbt.length == 0) {
+                    tag = new CompoundTag();
+                } else {
+                    tag = NBTIO.read(nbt, ByteOrder.LITTLE_ENDIAN);
+                }
+                if (tag.contains("Damage")) {
+                    tag.put("__DamageConflict__", tag.removeAndGet("Damage"));
+                }
+                tag.putInt("Damage", meta);
+                stream.putLShort(-1);
+                stream.putByte((byte) 1); // Hardcoded in current version
+                stream.put(NBTIO.write(tag, ByteOrder.LITTLE_ENDIAN));
+            } else if (item.hasCompoundTag()) {
+                stream.putLShort(-1);
+                stream.putByte((byte) 1); // Hardcoded in current version
+                stream.put(item.getCompoundTag());
+            } else {
+                stream.putLShort(0);
+            }
+
+            List<String> canPlaceOn = extractStringList(item, "CanPlaceOn");
+            stream.putLInt(canPlaceOn.size());
+            for (String string : canPlaceOn) {
+                byte[] b = string.getBytes(StandardCharsets.UTF_8);
+                stream.putLShort(string.length());
+                stream.put(b);
+            }
+
+            List<String> canDestroy = extractStringList(item, "CanDestroy");
+            stream.putLInt(canDestroy.size());
+            for (String string : canDestroy) {
+                byte[] b = string.getBytes(StandardCharsets.UTF_8);
+                stream.putLShort(string.length());
+                stream.put(b);
+            }
+
+            if (id == ItemID.SHIELD) {
+                stream.putLLong(0);
+            }
+
+            this.putByteArray(stream.getBuffer());
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to write item user data", e);
+        }
+    }
+
+    public Item getNetworkItemStackDescriptor(int protocolId) {
+        if (protocolId < ProtocolInfo.v1_26_20_26) {
+            return this.getSlot(protocolId);
+        }
+
+        short runtimeId = (short) this.getLShort(); // signed short
+        if (runtimeId == 0) {
+            return Item.get(Item.AIR, 0, 0);
+        }
+        int count = this.getLShort();
+        int damage = (int) this.getUnsignedVarInt();
+
+        RuntimeItemMapping mapping = RuntimeItems.getMapping(protocolId);
+
+        Integer id = null;
+        String stringId = null;
+        LegacyEntry legacyEntry = null;
+        try {
+            legacyEntry = mapping.fromRuntime(runtimeId);
+            id = legacyEntry.getLegacyId();
+            if (legacyEntry.isHasDamage()) {
+                damage = legacyEntry.getDamage();
+            }
+        } catch (IllegalArgumentException e) {
+
+        }
+
+        if (id == null || !Utils.hasItemOrBlock(id)) {
+            stringId = mapping.getNamespacedIdByNetworkId(runtimeId);
+            if (stringId == null) {
+                throw new IllegalArgumentException("Unknown item: runtimeID=" + runtimeId + " protocol=" + protocolId);
+            }
+            stringId = stringId + ":" + damage;
+            id = null;
+        }
+
+        if (this.getBoolean()) { // hasNetId
+            this.getUnsignedVarInt(); // netIdVariant
+            this.getVarInt(); // netId
+        }
+
+        int blockRuntimeId = (int) this.getUnsignedVarInt();
+
+        byte[] nbt = new byte[0];
+        String[] canPlace = null;
+        String[] canBreak = null;
+
+        byte[] bytes = this.getByteArray();
+
+        if (bytes.length != 0) {
+            ByteBuf buf = AbstractByteBufAllocator.DEFAULT.ioBuffer(bytes.length);
+            buf.writeBytes(bytes);
+
+            try (LittleEndianByteBufInputStream stream = new LittleEndianByteBufInputStream(buf)) {
+                int nbtSize = stream.readShort();
+
+                CompoundTag compoundTag = null;
+                if (nbtSize > 0) {
+                    compoundTag = NBTIO.read(stream, ByteOrder.LITTLE_ENDIAN);
+                } else if (nbtSize == -1) {
+                    int tagCount = stream.readUnsignedByte();
+                    if (tagCount != 1) throw new IllegalArgumentException("Expected 1 tag but got " + tagCount);
+                    compoundTag = NBTIO.read(stream, ByteOrder.LITTLE_ENDIAN);
+                }
+
+                if (compoundTag != null && !compoundTag.getAllTags().isEmpty()) {
+                    if (legacyEntry != null && !legacyEntry.isHasDamage() && compoundTag.contains("Damage")) {
+                        damage = compoundTag.getInt("Damage");
+                        compoundTag.remove("Damage");
+                    }
+                    if (compoundTag.contains("__DamageConflict__")) {
+                        compoundTag.put("Damage", compoundTag.removeAndGet("__DamageConflict__"));
+                    }
+                    if (!compoundTag.isEmpty()) {
+                        nbt = NBTIO.write(compoundTag, ByteOrder.LITTLE_ENDIAN);
+                    }
+                }
+
+                int canPlaceCount = stream.readInt();
+                if (canPlaceCount > 4096) {
+                    throw new RuntimeException("Too many CanPlaceOn blocks: " + canPlaceCount);
+                }
+
+                canPlace = new String[canPlaceCount];
+                for (int i = 0; i < canPlace.length; i++) {
+                    canPlace[i] = stream.readUTF();
+                }
+
+                int canBreakCount = stream.readInt();
+                if (canBreakCount > 4096) {
+                    throw new RuntimeException("Too many CanDestroy blocks: " + canBreakCount);
+                }
+
+                canBreak = new String[canBreakCount];
+                for (int i = 0; i < canBreak.length; i++) {
+                    canBreak[i] = stream.readUTF();
+                }
+
+                if (id != null && id == ItemID.SHIELD) {
+                    stream.readLong();
+                }
+
+                if (compoundTag != null && compoundTag.contains(MV_ORIGIN_ID) && compoundTag.contains(MV_ORIGIN_META)) {
+                    Item mvItem = Item.get(compoundTag.getInt(MV_ORIGIN_ID), compoundTag.getInt(MV_ORIGIN_META), count);
+                    if (compoundTag.contains(MV_ORIGIN_NBT)) {
+                        mvItem.setNamedTag(compoundTag.getCompound(MV_ORIGIN_NBT));
+                    }
+                    return mvItem;
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to read item user data", e);
+            } finally {
+                buf.release();
+            }
+        }
+
+        Item item;
+        if (id != null) {
+            item = Item.get(id, damage, count, nbt);
+        } else {
+            item = Item.fromString(stringId);
+            item.setDamage(damage);
+            item.setCount(count);
+            item.setCompoundTag(nbt);
+        }
+
+        if ((canBreak != null && canBreak.length > 0) || (canPlace != null && canPlace.length > 0)) {
+            CompoundTag namedTag = item.getNamedTag();
+            if (namedTag == null) {
+                namedTag = new CompoundTag();
+            }
+
+            if (canBreak != null && canBreak.length > 0) {
+                ListTag<StringTag> listTag = new ListTag<>("CanDestroy");
+                for (String blockName : canBreak) {
+                    listTag.add(new StringTag("", blockName));
+                }
+                namedTag.putList(listTag);
+            }
+
+            if (canPlace != null && canPlace.length > 0) {
+                ListTag<StringTag> listTag = new ListTag<>("CanPlaceOn");
+                for (String blockName : canPlace) {
+                    listTag.add(new StringTag("", blockName));
+                }
+                namedTag.putList(listTag);
+            }
+
+            item.setNamedTag(namedTag);
+        }
+
+        return item;
+    }
+
     public byte[] getByteArray() {
         return this.get((int) this.getUnsignedVarInt());
     }

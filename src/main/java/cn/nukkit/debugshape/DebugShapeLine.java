@@ -54,7 +54,7 @@ public class DebugShapeLine extends DebugShape {
     public ScriptDebugShape toNetworkData() {
         return new ScriptDebugShape(
                 id, getType(), position, null,
-                null, null, color,
+                null, null, null, color,
                 null, dimensionId,null, null, endPosition,
                 null, null, null
         );

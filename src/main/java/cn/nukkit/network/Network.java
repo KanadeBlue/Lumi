@@ -547,6 +547,9 @@ public class Network {
                 .registerPacket(ProtocolInfo.SERVERBOUND_DATA_DRIVEN_SCREEN_CLOSED_PACKET, ServerboundDataDrivenScreenClosedPacket.class, ServerboundDataDrivenScreenClosedPacket::new)
                 .registerPacket(ProtocolInfo.SYNC_WORLD_CLOCKS_PACKET, SyncWorldClocksPacket.class, SyncWorldClocksPacket::new)
                 .registerPacket(ProtocolInfo.CLIENTBOUND_ATTRIBUTE_LAYER_SYNC_PACKET, ClientboundAttributeLayerSyncPacket.class, ClientboundAttributeLayerSyncPacket::new)
+                // v975 packets
+                .registerPacket(ProtocolInfo.SERVER_STORE_INFO_PACKET, ServerStoreInfoPacket.class, ServerStoreInfoPacket::new)
+                .registerPacket(ProtocolInfo.SERVER_PRESENCE_INFO_PACKET, ServerPresenceInfoPacket.class, ServerStoreInfoPacket::new)
                 .build();
 
         this.packetPoolCurrent = this.packetPool.toBuilder()

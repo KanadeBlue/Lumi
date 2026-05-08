@@ -82,7 +82,7 @@ public class DebugShapeBox extends DebugShape {
     public ScriptDebugShape toNetworkData() {
         return new ScriptDebugShape(
                 id, getType(), position, scale,
-                null, null, color,
+                null, null, null, color,
                 null, dimensionId,null, boxBounds, null,
                 null, null, null
         );

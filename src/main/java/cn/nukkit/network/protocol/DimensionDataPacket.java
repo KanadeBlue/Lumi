@@ -34,12 +34,14 @@ public class DimensionDataPacket extends DataPacket {
 
     private static DimensionDefinition fromDimensionEnum(DimensionEnum dimension) {
         var dimensionData = dimension.getDimensionData();
+        System.out.println(dimensionData.getDimensionId());
         return new DimensionDefinition(
                 dimension.getIdentifier(),
                 // Bedrock dimension definitions use an open upper bound.
                 dimensionData.getMaxHeight() + 1,
                 dimensionData.getMinHeight(),
-                getGeneratorType(dimension)
+                getGeneratorType(dimension),
+                3 //force 3 because currently we don't support anything except overworld
         );
     }
 
@@ -66,6 +68,9 @@ public class DimensionDataPacket extends DataPacket {
             this.putVarInt(definition.getMaximumHeight());
             this.putVarInt(definition.getMinimumHeight());
             this.putVarInt(definition.getGeneratorType());
+            if(protocol >= ProtocolInfo.v1_26_20_26) {
+                this.putVarInt(definition.getDimensionType());
+            }
         }
     }
 }

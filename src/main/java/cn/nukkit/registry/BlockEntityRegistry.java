@@ -64,6 +64,7 @@ public class BlockEntityRegistry implements IRegistry<String, BiFunction<FullChu
         register(BlockEntityID.COPPER_GOLEM_STATUE, BlockEntityCopperGolemStatue::new, BlockEntityCopperGolemStatue.class);
         register(BlockEntityID.CHISELED_BOOKSHELF, BlockEntityChiseledBookshelf::new, BlockEntityChiseledBookshelf.class);
         register(BlockEntityID.HANGING_SIGN, BlockEntityHangingSign::new, BlockEntityHangingSign.class);
+        register(BlockEntityID.POTENT_SULFUR, BlockEntityPotentSulfur::new, BlockEntityPotentSulfur.class);
         register(BlockEntityID.SCULK_SENSOR, BlockEntitySculkSensor::new, BlockEntitySculkSensor.class);
         register(BlockEntityID.COMMAND_BLOCK, BlockEntityCommandBlock::new, BlockEntityCommandBlock.class);
         register(BlockEntityID.VAULT, BlockEntityVault::new, BlockEntityVault.class);
