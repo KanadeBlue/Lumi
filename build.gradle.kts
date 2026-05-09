@@ -157,8 +157,8 @@ publishing {
     }
     repositories {
         maven {
-            name = "luminiadev"
-            url = uri("https://repo.luminiadev.com/snapshots")
+            name = "lumi"
+            url = uri("https://repo.lumi.su/snapshots")
             credentials {
                 username = System.getenv("MAVEN_USERNAME")
                 password = System.getenv("MAVEN_PASSWORD")

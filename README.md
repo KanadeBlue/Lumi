@@ -32,8 +32,8 @@ Adding repo:
 ```xml
 <repositories>
     <repository>
-        <id>luminiadev-repository-snapshots</id>
-        <url>https://repo.luminiadev.com/snapshots</url>
+        <id>lumi-repository-snapshots</id>
+        <url>https://repo.lumi.su/snapshots</url>
     </repository>
 </repositories>
 ```
@@ -51,8 +51,8 @@ Adding dependency:
 Adding repo:
 ```kts
 maven {
-    name = "luminiadevRepositorySnapshots"
-    url = uri("https://repo.luminiadev.com/snapshots")
+    name = "lumiRepositorySnapshots"
+    url = uri("https://repo.lumi.su/snapshots")
 }
 ```
 
