@@ -37,25 +37,31 @@ public class Watchdog extends Thread {
 
     @Override
     public void run() {
+        final long threshold = time * 1_000_000L;
+        final long doubleThreshold = threshold << 1;
+
         while (this.running) {
             long current = server.getNextTick();
             if (current != 0) {
-                long diff = System.currentTimeMillis() - current;
-                if (!responding && diff > time << 1) {
-                    System.exit(1); // Kill the server if it gets stuck on shutdown
+                long now = System.nanoTime();
+                long diff = now - current;
+
+                if (!responding && diff > doubleThreshold) {
+                    System.exit(1);  // Kill the server if it gets stuck on shutdown
                 }
 
-                if (diff <= time) {
+                if (diff <= threshold) {
                     responding = true;
                 } else if (responding) {
                     MainLogger logger = this.server.getLogger();
                     StringBuilder log = new StringBuilder();
 
                     print("--------- Server stopped responding ---------", logger, log);
-                    print("Last response " + Math.round(diff / 1000d) + " seconds ago", logger, log);
+                    print("Last response " + Math.round(diff / 1_000_000_000.0) + " seconds ago", logger, log);
                     print("---------------- Main thread ----------------", logger, log);
 
-                    dumpThread(ManagementFactory.getThreadMXBean().getThreadInfo(this.server.getPrimaryThread().getId(), Integer.MAX_VALUE), logger, log);
+                    dumpThread(ManagementFactory.getThreadMXBean().getThreadInfo(
+                            this.server.getPrimaryThread().getId(), Integer.MAX_VALUE), logger, log);
 
                     print("---------------- All threads ----------------", logger, log);
                     ThreadInfo[] threads = ManagementFactory.getThreadMXBean().dumpAllThreads(true, true);

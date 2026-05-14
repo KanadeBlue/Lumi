@@ -680,7 +680,7 @@ public class Server {
             this.getLogger().debug("Unloading all levels...");
             for (Level level : this.levelArray) {
                 this.unloadLevel(level, true);
-                this.nextTick = System.currentTimeMillis(); // Fix Watchdog killing the server while saving worlds
+                this.nextTick = System.nanoTime(); // Fix Watchdog killing the server while saving worlds
             }
 
             this.getLogger().debug("Removing event handlers...");
@@ -771,7 +771,7 @@ public class Server {
      */
     public void tickProcessor() {
         final long tickTime = 50_000_000L;
-        long nextTick = System.nanoTime();
+        this.nextTick = System.nanoTime();
 
         try {
             while (this.isRunning.get()) {
@@ -1016,21 +1016,16 @@ public class Server {
     }
 
     private void tick() {
-        long tickTime = System.currentTimeMillis();
+        long tickTime = System.nanoTime();
 
-        long time = tickTime - this.nextTick;
-        if (time < -25) {
-            try {
-                Thread.sleep(Math.max(5, -time - 25));
-            } catch (InterruptedException e) {
-                Server.getInstance().getLogger().logException(e);
-            }
+        long diff = tickTime - this.nextTick;
+        
+        if (diff < -25_000_000L) {
+            long parkNanos = -diff - 25_000_000L;
+            LockSupport.parkNanos(Math.max(5_000_000L, parkNanos));
         }
 
         long tickTimeNano = System.nanoTime();
-        if ((tickTime - this.nextTick) < -25) {
-            return;
-        }
 
         ++this.tickCounter;
 
@@ -1081,8 +1076,8 @@ public class Server {
 
         long nowNano = System.nanoTime();
 
-        float tick = (float) Math.min(20, 1000000000 / Math.max(1000000, ((double) nowNano - tickTimeNano)));
-        float use = (float) Math.min(1, ((double) (nowNano - tickTimeNano)) / 50000000);
+        float tick = (float) Math.min(20, 1_000_000_000.0 / Math.max(1_000_000, (double) (nowNano - tickTimeNano)));
+        float use  = (float) Math.min(1, (double) (nowNano - tickTimeNano) / 50_000_000.0);
 
         if (this.maxTick > tick) {
             this.maxTick = tick;
@@ -1097,12 +1092,6 @@ public class Server {
 
         System.arraycopy(this.useAverage, 1, this.useAverage, 0, this.useAverage.length - 1);
         this.useAverage[this.useAverage.length - 1] = use;
-
-        if ((this.nextTick - tickTime) < -1000) {
-            this.nextTick = tickTime;
-        } else {
-            this.nextTick += 50;
-        }
     }
 
     public long getNextTick() {
