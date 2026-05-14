@@ -87,6 +87,7 @@ import java.lang.ref.SoftReference;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -241,6 +242,7 @@ public class Level implements ChunkManager, Metadatable {
     private final ConcurrentLinkedQueue<BlockEntity> updateBlockEntities = new ConcurrentLinkedQueue<>();
 
     private final Server server;
+    private final LongSet queuedChunkUnloads = new LongOpenHashSet();
 
     private final int levelId;
 
@@ -303,6 +305,8 @@ public class Level implements ChunkManager, Metadatable {
     public boolean isBeingConverted;
 
     private BlockMetadataStore blockMetadata;
+
+    private final ConcurrentHashMap<Long, ReentrantLock> chunkLocks = new ConcurrentHashMap<>();
 
     private final boolean useSections;
 
@@ -2255,6 +2259,7 @@ public class Level implements ChunkManager, Metadatable {
                 block = ev.getBlock();
                 block.onUpdate(BLOCK_UPDATE_NORMAL);
                 block.getLevelBlockAtLayer(layer == 0 ? 1 : 0).onUpdate(BLOCK_UPDATE_NORMAL);
+                chunk.setDirty(true);
                 this.updateAround(new Vector3(x, y, z));
             }
         }
@@ -3033,9 +3038,12 @@ public class Level implements ChunkManager, Metadatable {
 
     @Override
     public void setBlockIdAt(int x, int y, int z, int layer, int id) {
-        this.getChunk(x >> 4, z >> 4, true).setBlockId(x & 0x0f, ensureY(y), z & 0x0f, layer, id & Block.ID_MASK);
+        BaseFullChunk chunk = this.getChunk(x >> 4, z >> 4, true);
+        chunk.setBlockId(x & 0x0f, ensureY(y), z & 0x0f, layer, id & Block.ID_MASK);
+        chunk.setDirty(true);
         addBlockChange(x, y, z);
         temporalVector.setComponents(x, y, z);
+
         for (ChunkLoader loader : this.getChunkLoaders(x >> 4, z >> 4)) {
             loader.onBlockChanged(temporalVector);
         }
@@ -3052,6 +3060,7 @@ public class Level implements ChunkManager, Metadatable {
         boolean changed = chunk.setBlockAtLayer(x & 0x0f, ensureY(y), z & 0x0f, layer, id & Block.ID_MASK, data & Block.DATA_MASK);
         chunk.setBlockId(x & 0x0f, ensureY(y), z & 0x0f, id & Block.ID_MASK);
         chunk.setBlockData(x & 0x0f, ensureY(y), z & 0x0f, data & Block.DATA_MASK);
+        chunk.setDirty(true);
         addBlockChange(x, y, z);
         temporalVector.setComponents(x, y, z);
         for (ChunkLoader loader : this.getChunkLoaders(x >> 4, z >> 4)) {
@@ -3065,7 +3074,9 @@ public class Level implements ChunkManager, Metadatable {
     }
 
     public void setBlockExtraDataAt(int x, int y, int z, int id, int data) {
-        this.getChunk(x >> 4, z >> 4, true).setBlockExtraData(x & 0x0f, ensureY(y), z & 0x0f, (data << 8) | id);
+       BaseFullChunk chunk = this.getChunk(x >> 4, z >> 4, true);
+       chunk.setBlockExtraData(x & 0x0f, ensureY(y), z & 0x0f, (data << 8) | id);
+       chunk.setDirty(true);
 
         this.sendBlockExtraData(x, y, z, id, data);
     }
@@ -3087,7 +3098,9 @@ public class Level implements ChunkManager, Metadatable {
 
     @Override
     public void setBlockDataAt(int x, int y, int z, int layer, int data) {
-        this.getChunk(x >> 4, z >> 4, true).setBlockData(x & 0x0f, ensureY(y), z & 0x0f, layer, data & Block.DATA_MASK);
+        BaseFullChunk chunk = this.getChunk(x >> 4, z >> 4, true);
+        chunk.setBlockData(x & 0x0f, ensureY(y), z & 0x0f, layer, data & Block.DATA_MASK);
+        chunk.setDirty(true);
         addBlockChange(x, y, z);
         temporalVector.setComponents(x, y, z);
         for (ChunkLoader loader : this.getChunkLoaders(x >> 4, z >> 4)) {
@@ -3111,6 +3124,7 @@ public class Level implements ChunkManager, Metadatable {
     public synchronized void setBlockLightAt(int x, int y, int z, int level) {
         BaseFullChunk c = this.getChunkIfLoaded(x >> 4, z >> 4);
         if (null != c) {
+            c.setDirty(true);
             c.setBlockLight(x & 0x0f, ensureY(y), z & 0x0f, level & 0x0f);
         }
     }
@@ -3724,6 +3738,15 @@ public class Level implements ChunkManager, Metadatable {
             throw new LevelException("Invalid Entity level");
         }
 
+        BaseFullChunk chunk = this.getChunk(
+                entity.getFloorX() >> 4,
+                entity.getFloorZ() >> 4
+        );
+
+        if (chunk != null) {
+            chunk.setDirty(true);
+        }
+
         if (entity instanceof Player) {
             this.players.remove(entity.getId());
             this.checkSleep();
@@ -3740,9 +3763,19 @@ public class Level implements ChunkManager, Metadatable {
             throw new LevelException("Invalid Entity level");
         }
 
+        BaseFullChunk chunk = this.getChunk(
+                entity.getFloorX() >> 4,
+                entity.getFloorZ() >> 4
+        );
+
+        if (chunk != null) {
+            chunk.setDirty(true);
+        }
+
         if (entity instanceof Player) {
             this.players.put(entity.getId(), (Player) entity);
         }
+
         this.entities.put(entity.getId(), entity);
     }
 
@@ -3750,7 +3783,8 @@ public class Level implements ChunkManager, Metadatable {
         if (blockEntity.getLevel() != this) {
             throw new LevelException("Invalid BlockEntity level");
         }
-        blockEntities.put(blockEntity.getId(), blockEntity);
+
+        this.blockEntities.put(blockEntity.getId(), blockEntity);
     }
 
     public void scheduleBlockEntityUpdate(BlockEntity entity) {
@@ -3771,13 +3805,18 @@ public class Level implements ChunkManager, Metadatable {
         updateBlockEntities.remove(entity);
     }
 
+    private ReentrantLock getChunkLock(long hash) {
+        return this.chunkLocks.computeIfAbsent(hash, k -> new ReentrantLock());
+    }
+
     public boolean isChunkInUse(int x, int z) {
-        return isChunkInUse(Level.chunkHash(x, z));
+        return this.isChunkInUse(Level.chunkHash(x, z));
     }
 
     public boolean isChunkInUse(long hash) {
-        Map<Integer, ChunkLoader> map = this.chunkLoaders.get(hash);
-        return map != null && !map.isEmpty();
+        Map<Integer, ChunkLoader> loaders = this.chunkLoaders.get(hash);
+
+        return loaders != null && !loaders.isEmpty();
     }
 
     public boolean loadChunk(int x, int z) {
@@ -3786,49 +3825,93 @@ public class Level implements ChunkManager, Metadatable {
 
     public boolean loadChunk(int x, int z, boolean generate) {
         long index = Level.chunkHash(x, z);
-        if (this.requireProvider().isChunkLoaded(index)) {
+
+        LevelProvider provider = this.requireProvider();
+
+        if (provider.isChunkLoaded(index)) {
             return true;
         }
-        return forceLoadChunk(index, x, z, generate) != null;
+
+        return this.forceLoadChunk(index, x, z, generate) != null;
     }
 
-    private synchronized BaseFullChunk forceLoadChunk(long index, int x, int z, boolean generate) {
-        BaseFullChunk chunk = this.requireProvider().getChunk(x, z, generate);
+    private BaseFullChunk forceLoadChunk(long index, int x, int z, boolean generate) {
+        ReentrantLock lock = this.getChunkLock(index);
 
-        if (chunk == null) {
-            if (generate) {
-                throw new IllegalStateException("Could not create new chunk");
+        lock.lock();
+
+        try {
+            LevelProvider provider = this.requireProvider();
+
+            if (provider.isChunkLoaded(index)) {
+                return provider.getLoadedChunk(x, z);
             }
-            return null;
-        }
 
-        if (chunk.getProvider() != null) {
-            this.server.getPluginManager().callEvent(new ChunkLoadEvent(chunk, !chunk.isGenerated()));
-        } else {
-            this.unloadChunk(x, z, false);
+            BaseFullChunk chunk = provider.getChunk(x, z, generate);
+
+            if (chunk == null) {
+                if (generate) {
+                    throw new IllegalStateException(
+                            "Could not create chunk " + x + ", " + z
+                    );
+                }
+
+                return null;
+            }
+
+            if (chunk.getProvider() == null) {
+                provider.unloadChunk(x, z, false);
+                return null;
+            }
+
+            chunk.initChunk();
+
+            if (!chunk.isLightPopulated()
+                    && chunk.isPopulated()
+                    && this.server.getSettings().world().lightUpdates()) {
+
+                this.server.getScheduler().scheduleAsyncTask(
+                        InternalPlugin.INSTANCE,
+                        new LightPopulationTask(this, chunk)
+                );
+            }
+
+            if (this.isChunkInUse(index)) {
+                this.unloadQueue.remove(index);
+            } else {
+                final Long now = System.currentTimeMillis();
+                this.unloadQueue.putIfAbsent(index, now);
+            }
+
+            lock.unlock();
+
+            this.server.getPluginManager().callEvent(
+                    new ChunkLoadEvent(chunk, !chunk.isGenerated())
+            );
+
+            if (this.isChunkInUse(index)) {
+                Collection<ChunkLoader> loaders = List.of(this.getChunkLoaders(x, z));
+
+                for (ChunkLoader loader : loaders) {
+                    loader.onChunkLoaded(chunk);
+                }
+            }
+
             return chunk;
-        }
 
-        chunk.initChunk();
-
-        if (!chunk.isLightPopulated() && chunk.isPopulated() && this.server.getSettings().world().lightUpdates()) {
-            this.server.getScheduler().scheduleAsyncTask(InternalPlugin.INSTANCE, new LightPopulationTask(this, chunk));
-        }
-
-        if (this.isChunkInUse(index)) {
-            this.unloadQueue.remove(index);
-            for (ChunkLoader loader : this.getChunkLoaders(x, z)) {
-                loader.onChunkLoaded(chunk);
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
             }
-        } else {
-            this.unloadQueue.put(index, (Long) System.currentTimeMillis());
         }
-        return chunk;
     }
+
 
     private void queueUnloadChunk(int x, int z) {
         long index = Level.chunkHash(x, z);
-        this.unloadQueue.put(index, (Long) System.currentTimeMillis());
+
+        final Long now = System.currentTimeMillis();
+        this.unloadQueue.putIfAbsent(index, now);
     }
 
     public boolean unloadChunkRequest(int x, int z) {
@@ -3861,59 +3944,113 @@ public class Level implements ChunkManager, Metadatable {
         return this.unloadChunk(x, z, safe, true);
     }
 
-    public synchronized boolean unloadChunk(int x, int z, boolean safe, boolean trySave) {
-        if (safe && this.isChunkInUse(x, z)) {
-            return false;
-        }
+    public boolean unloadChunk(int x, int z, boolean safe, boolean trySave) {
+        long index = Level.chunkHash(x, z);
 
-        if (!this.isChunkLoaded(x, z)) {
-            return true;
-        }
+        ReentrantLock lock = this.getChunkLock(index);
 
-        BaseFullChunk chunk = this.getChunk(x, z);
-
-        if (chunk != null && chunk.getProvider() != null) {
-            ChunkUnloadEvent ev = new ChunkUnloadEvent(chunk);
-            this.server.getPluginManager().callEvent(ev);
-            if (ev.isCancelled()) {
-                return false;
-            }
-        }
+        lock.lock();
 
         try {
-            LevelProvider levelProvider = this.requireProvider();
-            if (chunk != null) {
-                if (trySave && this.autoSave) {
-                    int entities = 0;
-                    for (Entity e : chunk.getEntities().values()) {
-                        if (e instanceof Player) {
-                            continue;
-                        }
-                        ++entities;
+            if (safe && this.isChunkInUse(index)) {
+                return false;
+            }
+
+            if (!this.isChunkLoaded(x, z)) {
+                return true;
+            }
+
+            BaseFullChunk chunk = this.getChunk(x, z);
+
+            if (chunk == null || chunk.getProvider() == null) {
+                return true;
+            }
+
+            ChunkUnloadEvent event = new ChunkUnloadEvent(chunk);
+
+            lock.unlock();
+
+            this.server.getPluginManager().callEvent(event);
+
+            lock.lock();
+
+            if (event.isCancelled()) {
+                return false;
+            }
+
+            LevelProvider provider = this.requireProvider();
+
+            if (trySave && this.autoSave) {
+
+                boolean shouldSave = chunk.hasChanged();
+
+                if (!shouldSave) {
+
+                    for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                        shouldSave = true;
+                        break;
                     }
 
-                    if (chunk.hasChanged() || !chunk.getBlockEntities().isEmpty() || entities > 0) {
-                        levelProvider.setChunk(x, z, chunk);
-                        levelProvider.saveChunk(x, z);
+                    if (!shouldSave) {
+                        for (Entity entity : chunk.getEntities().values()) {
+
+                            if (!(entity instanceof Player)) {
+                                shouldSave = true;
+                                break;
+                            }
+                        }
                     }
                 }
-                for (ChunkLoader loader : this.getChunkLoaders(x, z)) {
-                    loader.onChunkUnloaded(chunk);
+
+                if (shouldSave) {
+                    provider.setChunk(x, z, chunk);
+                    provider.saveChunk(x, z);
                 }
             }
-            levelProvider.unloadChunk(x, z, safe);
-        } catch (Exception e) {
-            MainLogger logger = this.server.getLogger();
-            logger.error(this.server.getLanguage().translateString("nukkit.level.chunkUnloadError", e.toString()));
-            logger.logException(e);
-        }
 
-        return true;
+            Collection<ChunkLoader> loaders = List.of(this.getChunkLoaders(x, z));
+
+            for (ChunkLoader loader : loaders) {
+                loader.onChunkUnloaded(chunk);
+            }
+
+            provider.unloadChunk(x, z, safe);
+
+            this.unloadQueue.remove(index);
+
+            return true;
+
+        } catch (Exception e) {
+
+            MainLogger logger = this.server.getLogger();
+
+            logger.error(
+                    this.server.getLanguage().translateString(
+                            "nukkit.level.chunkUnloadError",
+                            e.toString()
+                    )
+            );
+
+            logger.logException(e);
+
+            return false;
+
+        } finally {
+
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
     }
 
-    public boolean isSpawnChunk(int X, int Z) {
+    public boolean isSpawnChunk(int x, int z) {
         Vector3 spawn = this.getSpawnLocation();
-        return Math.abs(X - (spawn.getFloorX() >> 4)) <= 1 && Math.abs(Z - (spawn.getFloorZ() >> 4)) <= 1;
+
+        int spawnChunkX = spawn.getFloorX() >> 4;
+        int spawnChunkZ = spawn.getFloorZ() >> 4;
+
+        return Math.abs(x - spawnChunkX) <= 1
+                && Math.abs(z - spawnChunkZ) <= 1;
     }
 
     public Position getSafeSpawn() {
@@ -4076,44 +4213,73 @@ public class Level implements ChunkManager, Metadatable {
     }
 
     public void doChunkGarbageCollection() {
-        // Remove all invalid block entities
-        if (!blockEntities.isEmpty()) {
-            Iterator<BlockEntity> iter = blockEntities.values().iterator();
-            while (iter.hasNext()) {
-                BlockEntity blockEntity = iter.next();
-                if (blockEntity != null) {
-                    if (!blockEntity.isValid()) {
-                        iter.remove();
+        if (!this.blockEntities.isEmpty()) {
+            Iterator<Map.Entry<Long, BlockEntity>> iterator = this.blockEntities.entrySet().iterator();
+
+            while (iterator.hasNext()) {
+                BlockEntity blockEntity = iterator.next().getValue();
+
+                if (blockEntity == null || !blockEntity.isValid()) {
+                    iterator.remove();
+
+                    if (blockEntity != null) {
                         blockEntity.close();
                     }
-                } else {
-                    iter.remove();
                 }
             }
         }
 
-        LevelProvider levelProvider = this.requireProvider();
-        for (Map.Entry<Long, ? extends FullChunk> entry : levelProvider.getLoadedChunks().entrySet()) {
-            long index = entry.getKey();
-            if (!this.unloadQueue.containsKey(index)) {
-                FullChunk chunk = entry.getValue();
-                int X = chunk.getX();
-                int Z = chunk.getZ();
-                if (!this.isSpawnChunk(X, Z)) {
-                    this.unloadChunkRequest(X, Z, true);
+        LevelProvider provider = this.requireProvider();
+
+        for (FullChunk chunk : provider.getLoadedChunks().values()) {
+            int chunkX = chunk.getX();
+            int chunkZ = chunk.getZ();
+
+            if (this.isSpawnChunk(chunkX, chunkZ)) {
+                continue;
+            }
+
+            if (chunk.getProvider() == null) {
+                continue;
+            }
+
+            boolean hasPlayers = false;
+
+            for (Entity entity : chunk.getEntities().values()) {
+                if (entity instanceof Player) {
+                    hasPlayers = true;
+                    break;
                 }
             }
+
+            if (hasPlayers) {
+                continue;
+            }
+
+            long index = Level.chunkHash(chunkX, chunkZ);
+
+            if (!this.queuedChunkUnloads.add(index)) {
+                continue;
+            }
+
+            this.unloadChunkRequest(chunkX, chunkZ, true);
         }
 
-        levelProvider.doGarbageCollection();
+        provider.doGarbageCollection();
     }
 
-
     public void doGarbageCollection(long allocatedTime) {
-        long start = System.currentTimeMillis();
-        if (unloadChunks(start, allocatedTime, false)) {
-            allocatedTime -= (System.currentTimeMillis() - start);
-            provider.doGarbageCollection(allocatedTime);
+        long start = System.nanoTime();
+
+        if (!this.unloadChunks(System.currentTimeMillis(), allocatedTime, false)) {
+            return;
+        }
+
+        long elapsed = (System.nanoTime() - start) / 1_000_000L;
+        long remaining = allocatedTime - elapsed;
+
+        if (remaining > 0L) {
+            this.provider.doGarbageCollection(remaining);
         }
     }
 

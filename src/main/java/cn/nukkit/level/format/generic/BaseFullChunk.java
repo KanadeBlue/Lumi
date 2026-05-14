@@ -78,6 +78,9 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
 
     protected Map<Integer, BatchPacket> chunkPackets;
 
+    private volatile boolean dirty = true;
+    private volatile long lastCompression;
+
     @Override
     public BaseFullChunk clone() {
         BaseFullChunk chunk;
@@ -842,6 +845,22 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
     @Override
     public int getMaxBlockY() {
         return this.getProvider().getMaxBlockY();
+    }
+
+    public boolean isDirty() {
+        return dirty;
+    }
+
+    public void setDirty(boolean dirty) {
+        this.dirty = dirty;
+    }
+
+    public long getLastCompression() {
+        return lastCompression;
+    }
+
+    public void setLastCompression(long lastCompression) {
+        this.lastCompression = lastCompression;
     }
 
     public boolean compress() {
