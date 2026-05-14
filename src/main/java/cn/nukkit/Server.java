@@ -100,6 +100,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.regex.Pattern;
 
 /**
@@ -769,42 +770,72 @@ public class Server {
      * Internal: Tick the server
      */
     public void tickProcessor() {
-        this.nextTick = System.currentTimeMillis();
+        final long tickTime = 50_000_000L;
+        long nextTick = System.nanoTime();
+
         try {
             while (this.isRunning.get()) {
-
                 try {
                     this.tick();
 
-                    long next = this.nextTick;
-                    long current = System.currentTimeMillis();
+                    nextTick += tickTime;
 
-                    if (next - 0.1 > current) {
-                        long allocated = next - current - 1;
+                    long now = System.nanoTime();
+                    long remaining = nextTick - now;
 
-                        if (settings.world().doWorldGc()) { // Instead of wasting time, do something potentially useful
-                            int offset = 0;
-                            for (int i = 0; i < levelArray.length; i++) {
-                                offset = (i + lastLevelGC) % levelArray.length;
-                                Level level = levelArray[offset];
-                                if (!level.isBeingConverted) {
-                                    level.doGarbageCollection(allocated - 1);
-                                }
-                                allocated = next - System.currentTimeMillis();
-                                if (allocated <= 0) break;
-                            }
-                            lastLevelGC = offset + 1;
+                    if (remaining <= 0L) {
+                        if (remaining < -(tickTime * 5L)) {
+                            nextTick = now;
                         }
+                        continue;
+                    }
 
-                        if (allocated > 0 || !settings.world().doWorldGc()) {
-                            try {
-                                //noinspection BusyWait
-                                Thread.sleep(allocated, 900000);
-                            } catch (Exception e) {
-                                this.getLogger().logException(e);
+                    if (settings.world().doWorldGc()) {
+                        long gcBudget = remaining - 1_000_000L;
+
+                        if (gcBudget > 0L) {
+                            final Level[] levels = this.levelArray;
+                            final int length = levels.length;
+
+                            if (length > 0) {
+                                int offset = this.lastLevelGC;
+
+                                for (int i = 0; i < length; i++) {
+                                    offset++;
+
+                                    if (offset >= length) {
+                                        offset = 0;
+                                    }
+
+                                    Level level = levels[offset];
+
+                                    if (level == null || level.isBeingConverted) {
+                                        continue;
+                                    }
+
+                                    long gcStart = System.nanoTime();
+
+                                    level.doGarbageCollection(
+                                            Math.max(1L, gcBudget / 1_000_000L)
+                                    );
+
+                                    gcBudget -= System.nanoTime() - gcStart;
+
+                                    if (gcBudget <= 0L) {
+                                        break;
+                                    }
+                                }
+
+                                this.lastLevelGC = offset;
+                                remaining = nextTick - System.nanoTime();
                             }
                         }
                     }
+
+                    if (remaining > 0L) {
+                        LockSupport.parkNanos(remaining);
+                    }
+
                 } catch (RuntimeException e) {
                     log.error("A RuntimeException happened while ticking the server", e);
                 }
