@@ -1,5 +1,6 @@
 package cn.nukkit.level.format;
 
+import cn.nukkit.Player;
 import cn.nukkit.block.Block;
 import cn.nukkit.blockentity.BlockEntity;
 import cn.nukkit.entity.Entity;
@@ -191,6 +192,7 @@ public interface FullChunk extends Cloneable {
     void removeBlockEntity(BlockEntity blockEntity);
 
     Map<Long, Entity> getEntities();
+    Map<Long, Player> getPlayers();
 
     Map<Long, BlockEntity> getBlockEntities();
 

@@ -21,6 +21,7 @@ import cn.nukkit.network.protocol.BatchPacket;
 import cn.nukkit.registry.Registries;
 import cn.nukkit.utils.collection.nb.Long2ObjectNonBlockingMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import java.util.Map;
 public abstract class BaseFullChunk implements FullChunk, ChunkManager {
 
     protected Long2ObjectNonBlockingMap<Entity> entities;
+    private Map<Long, Player> players = new Long2ObjectOpenHashMap<>();
 
     protected Long2ObjectNonBlockingMap<BlockEntity> tiles;
 
@@ -509,8 +511,16 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
         if (this.entities == null) {
             this.entities = new Long2ObjectNonBlockingMap<>();
         }
+
         this.entities.put(entity.getId(), entity);
-        if (!(entity instanceof Player) && this.isInit) {
+
+        if (entity instanceof Player player) {
+            if (this.players == null) {
+                this.players = new Long2ObjectNonBlockingMap<>();
+            }
+
+            this.players.put(entity.getId(), player);
+        } else if (this.isInit) {
             this.setChanged();
         }
     }
@@ -519,9 +529,14 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
     public void removeEntity(Entity entity) {
         if (this.entities != null) {
             this.entities.remove(entity.getId());
-            if (!(entity instanceof Player) && this.isInit) {
-                this.setChanged();
+        }
+
+        if (entity instanceof Player) {
+            if (this.players != null) {
+                this.players.remove(entity.getId());
             }
+        } else if (this.isInit) {
+            this.setChanged();
         }
     }
 
@@ -573,6 +588,11 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
     @Override
     public Map<Long, Entity> getEntities() {
         return entities == null ? Collections.emptyMap() : entities;
+    }
+
+    @Override
+    public Map<Long, Player> getPlayers() {
+        return players == null ? Collections.emptyMap() : players;
     }
 
     @Override

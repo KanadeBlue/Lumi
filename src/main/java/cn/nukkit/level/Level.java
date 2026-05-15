@@ -4243,16 +4243,7 @@ public class Level implements ChunkManager, Metadatable {
                 continue;
             }
 
-            boolean hasPlayers = false;
-
-            for (Entity entity : chunk.getEntities().values()) {
-                if (entity instanceof Player) {
-                    hasPlayers = true;
-                    break;
-                }
-            }
-
-            if (hasPlayers) {
+            if (!chunk.getPlayers().isEmpty()) {
                 continue;
             }
 
