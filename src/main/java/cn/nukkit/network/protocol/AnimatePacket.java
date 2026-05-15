@@ -76,7 +76,8 @@ public class AnimatePacket extends DataPacket {
         }
 
         if (protocol >= ProtocolInfo.v1_21_130) {
-            this.putOptional((swing) -> swing != null && swing != SwingSource.NONE, this.swingSource, (stream, source) -> stream.putString(source.name()));
+            System.out.println(swingSource.getName() + " " + swingSource.name());
+            this.putOptional((swing) -> swing != null && swing != SwingSource.NONE, this.swingSource, (stream, source) -> stream.putString(source.getName()));
         }
     }
 
