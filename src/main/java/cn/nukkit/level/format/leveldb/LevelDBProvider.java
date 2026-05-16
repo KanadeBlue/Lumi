@@ -71,7 +71,6 @@ public class LevelDBProvider implements LevelProvider {
     protected CompoundTag levelData;
     private Vector3 spawn;
     private Long cachedSeed;
-    private int lastGcPosition = 0;
 
     protected volatile boolean closed;
     protected final Lock gcLock;
@@ -971,7 +970,7 @@ public class LevelDBProvider implements LevelProvider {
                         chunk.compress();
                     }
                 } catch (Throwable throwable) {
-                    throwable.printStackTrace();
+                    Server.getInstance().getLogger().error("Failed to compress chunk " + chunk.getX() + ", " + chunk.getZ(), throwable);
                 }
             });
         }

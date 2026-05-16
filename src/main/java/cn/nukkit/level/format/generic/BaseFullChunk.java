@@ -584,7 +584,7 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
 
     @Override
     public Map<Long, Player> getPlayers() {
-        return players == null ? Collections.emptyMap() : players;
+        return players;
     }
 
     @Override

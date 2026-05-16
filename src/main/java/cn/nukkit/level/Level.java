@@ -3738,10 +3738,7 @@ public class Level implements ChunkManager, Metadatable {
             throw new LevelException("Invalid Entity level");
         }
 
-        BaseFullChunk chunk = this.getChunk(
-                entity.getFloorX() >> 4,
-                entity.getFloorZ() >> 4
-        );
+        BaseFullChunk chunk = this.getChunk(entity.getChunkX(), entity.getChunkZ());
 
         if (chunk != null) {
             chunk.setDirty(true);
@@ -3763,10 +3760,7 @@ public class Level implements ChunkManager, Metadatable {
             throw new LevelException("Invalid Entity level");
         }
 
-        BaseFullChunk chunk = this.getChunk(
-                entity.getFloorX() >> 4,
-                entity.getFloorZ() >> 4
-        );
+        BaseFullChunk chunk = this.getChunk(entity.getChunkX(), entity.getChunkZ());
 
         if (chunk != null) {
             chunk.setDirty(true);
@@ -4213,18 +4207,18 @@ public class Level implements ChunkManager, Metadatable {
     }
 
     public void doChunkGarbageCollection() {
-        if (!this.blockEntities.isEmpty()) {
-            Iterator<Map.Entry<Long, BlockEntity>> iterator = this.blockEntities.entrySet().iterator();
-
-            while (iterator.hasNext()) {
-                BlockEntity blockEntity = iterator.next().getValue();
-
-                if (blockEntity == null || !blockEntity.isValid()) {
-                    iterator.remove();
-
-                    if (blockEntity != null) {
+        // Remove all invalid block entities
+        if (!blockEntities.isEmpty()) {
+            Iterator<BlockEntity> iter = blockEntities.values().iterator();
+            while (iter.hasNext()) {
+                BlockEntity blockEntity = iter.next();
+                if (blockEntity != null) {
+                    if (!blockEntity.isValid()) {
+                        iter.remove();
                         blockEntity.close();
                     }
+                } else {
+                    iter.remove();
                 }
             }
         }
