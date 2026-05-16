@@ -1,7 +1,6 @@
 package cn.nukkit.level.format.generic;
 
 import cn.nukkit.Player;
-import cn.nukkit.block.Block;
 import cn.nukkit.block.BlockID;
 import cn.nukkit.blockentity.BlockEntity;
 import cn.nukkit.blockentity.impl.PersistentDataContainerBlockEntity;
@@ -21,7 +20,6 @@ import cn.nukkit.network.protocol.BatchPacket;
 import cn.nukkit.registry.Registries;
 import cn.nukkit.utils.collection.nb.Long2ObjectNonBlockingMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,7 +34,7 @@ import java.util.Map;
 public abstract class BaseFullChunk implements FullChunk, ChunkManager {
 
     protected Long2ObjectNonBlockingMap<Entity> entities;
-    private Map<Long, Player> players = new Long2ObjectOpenHashMap<>();
+    protected Long2ObjectNonBlockingMap<Player> players = new Long2ObjectNonBlockingMap<>();
 
     protected Long2ObjectNonBlockingMap<BlockEntity> tiles;
 
@@ -515,10 +513,6 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
         this.entities.put(entity.getId(), entity);
 
         if (entity instanceof Player player) {
-            if (this.players == null) {
-                this.players = new Long2ObjectNonBlockingMap<>();
-            }
-
             this.players.put(entity.getId(), player);
         } else if (this.isInit) {
             this.setChanged();
@@ -532,9 +526,7 @@ public abstract class BaseFullChunk implements FullChunk, ChunkManager {
         }
 
         if (entity instanceof Player) {
-            if (this.players != null) {
-                this.players.remove(entity.getId());
-            }
+            this.players.remove(entity.getId());
         } else if (this.isInit) {
             this.setChanged();
         }
